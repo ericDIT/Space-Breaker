@@ -1,8 +1,8 @@
-#[Work in progress]
+# [Work in progress]
 Space-Breaker is a small arcade game within your web-browser.
 You control a spaceship, dodge obstacles and gain points by picking up rewards.
 
-#Controlls
+# Controlls
 UP | w or arrow up key
 DOWN | s or arrow down key
 LEFT | a or arrow left key
