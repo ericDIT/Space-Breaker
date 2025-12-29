@@ -3,8 +3,6 @@ import { loadSpaceship } from './components/low_poly_space_ship';
 import { explode } from './animations/obstacle_explosion';
 import './style.css'
 import * as THREE from 'three';
-import * as CANNON from 'cannon-es'
-import CannonDebugger from 'cannon-es-debugger';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 /**
@@ -15,6 +13,8 @@ const shipBox = new THREE.Box3();
 const currentObstacleBox = new THREE.Box3();
 let skybox;
 const loader = new GLTFLoader();
+let lastShotTime = 0;
+const fireRate = 200;
 
 const pointsUI = document.querySelector("#points");
 let points = 0;
@@ -93,6 +93,63 @@ loadSpaceship({ position: [0,0,0], scale: 0.3}).then((spaceship) =>{
 });
 
 /**
+ * Projectiles
+ */
+const projectiles = [];
+const projectileSpeed = 0.5;
+const laserbox = new THREE.Box3();
+
+const fireLaser = () => {
+  const currentTime = Date.now();
+  if(!spacecraftRoot || currentTime - lastShotTime < fireRate) return;
+
+  lastShotTime = currentTime;
+
+  const geometry = new THREE.CapsuleGeometry(0.02,0.2,4,8);
+  const material = new THREE.MeshBasicMaterial({ color: 0xff0000});
+  const laser = new THREE.Mesh(geometry,material);
+
+  laser.position.copy(spacecraftRoot.position);
+  laser.rotation.x = Math.PI / 2;
+
+  scene.add(laser);
+  projectiles.push(laser);
+}
+
+const moveLaser = () => {
+  for(let i = projectiles.length -1; i>=0; i--){
+    const laser = projectiles[i];
+    laser.position.z -= projectileSpeed;
+
+    if(laser.position.z < -50) {
+      scene.remove(laser);
+      projectiles.splice(i, 1);
+      continue;
+    }
+
+    laserbox.setFromObject(laser);
+
+    for(let j = obstacles.length -1; j>=0; j--) {
+      const asteroid = obstacles[j];
+      currentObstacleBox.setFromObject(asteroid);
+      if(laserbox.intersectsBox(currentObstacleBox)) {
+        explode(asteroid.position.clone(), scene);
+
+        scene.remove(asteroid);
+        obstacles.splice(j, 1);
+
+        scene.remove(laser);
+        projectiles.splice(i,1);
+
+        points += 10;
+        if (pointsUI) pointsUI.innerText = points;
+        break;
+      }
+    }
+  }
+}
+
+/**
  * Obstacles
  */
 const obstacles = [];
@@ -131,9 +188,9 @@ loader.load('models/asteroids_pack_rocky_version.glb', (gltf) => {
 
 /**
  * Grid helper
- */
 const gridHelper = new THREE.GridHelper(30,30);
 scene.add(gridHelper);
+*/
 
 camera.position.z = 5;
 
@@ -158,7 +215,8 @@ function animate() {
 
   moveObstacles(obstacles);
   controls.update();
-
+  moveLaser();
+  handleMovement(0.1);
 
   if (skybox) {
     skybox.rotation.y += 0.0002;
@@ -181,22 +239,36 @@ window.addEventListener("resize", ()=>{
 /**
  * Controlls Spacecraft
  */
-window.addEventListener("keydown", (e) =>{
-  if (!spacecraftRoot) return;
+const keys = {};
 
-  if(e.key === "d" || e.key === "D" || e.key === "ArrowRight") {
-    spacecraftRoot.position.x += 0.1;
+window.addEventListener('keydown', (e) => {
+  keys[e.key] = true;
+  keys[e.code] = true;
+});
+
+window.addEventListener('keyup', (e) => {
+  keys[e.key] = false;
+  keys[e.code] = false;
+});
+
+function handleMovement(speed) {
+  if(!spacecraftRoot) return;
+  if (keys["ArrowUp"] || keys["w"] || keys["W"]) {
+    spacecraftRoot.position.y += speed;
   }
-  if(e.key === "w" || e.key === "W" || e.key === "ArrowUp") {
-    spacecraftRoot.position.y += 0.1;
+  if (keys["ArrowDown"] || keys["s"] || keys["S"]) {
+    spacecraftRoot.position.y -= speed;
   }
-  if(e.key === "a" || e.key === "A" || e.key === "ArrowLeft") {
-    spacecraftRoot.position.x -= 0.1;
+  if (keys["ArrowRight"] || keys["d"] || keys["D"]) {
+    spacecraftRoot.position.x += speed;
   }
-  if(e.key === "s" || e.key === "S" || e.key === "ArrowDown") {
-    spacecraftRoot.position.y -= 0.1;
+  if (keys["ArrowLeft"] || keys["a"] || keys["A"]) {
+    spacecraftRoot.position.x -= speed;
   }
-  if(e.key === "r" || e.key === "R") {
+  if (keys["Space"] || keys[" "]) {
+    fireLaser();
+  }
+  if (keys["r"] || keys["R"]) {
     spacecraftRoot.position.set(0, 0, 0);
   }
-});
+}
