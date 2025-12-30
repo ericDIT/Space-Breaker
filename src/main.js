@@ -108,6 +108,8 @@ const fireLaser = () => {
   const geometry = new THREE.CapsuleGeometry(0.02,0.2,4,8);
   const material = new THREE.MeshBasicMaterial({ color: 0xff0000});
   const laser = new THREE.Mesh(geometry,material);
+  const light = new THREE.PointLight(0xff0000, 10, 20);
+  laser.add(light);
 
   laser.position.copy(spacecraftRoot.position);
   laser.rotation.x = Math.PI / 2;
@@ -141,7 +143,8 @@ const moveLaser = () => {
         scene.remove(laser);
         projectiles.splice(i,1);
 
-        points += 10;
+        points += 1;
+        console.log("Shot asteroid! +1 point")
         if (pointsUI) pointsUI.innerText = points;
         break;
       }
