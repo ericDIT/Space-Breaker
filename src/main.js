@@ -16,8 +16,8 @@ const loader = new GLTFLoader();
 let lastShotTime = 0;
 const fireRate = 200;
 
-const pointsUI = document.querySelector("#points");
-let points = 0;
+const pointsUI = document.querySelector("#pointsUI");
+let points = 1;
 console.log(pointsUI);
 const randomRangeNum = (max,min) =>{
   return Math.floor(Math.random() * (max - min + 1) + min);
@@ -69,21 +69,9 @@ loader.load('models/space_nebula_hdri_panorama_360_skydome.glb', (gltf) => {
 });
 
 /**
- * Ground area
- */
-const ground = new THREE.Mesh(
-  new THREE.BoxGeometry(30, 1, 30),
-  new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true })
-);
-ground.position.y = -1;
-scene.add(ground);
-
-/**
  * Spacecraft (player)
  */
-
 loadSpaceship({ position: [0,0,0], scale: 0.3}).then((spaceship) =>{
-
   spacecraftRoot = new THREE.Group();
   spacecraftRoot.add(spaceship)
   spacecraftRoot.castShadow = true;
@@ -91,6 +79,69 @@ loadSpaceship({ position: [0,0,0], scale: 0.3}).then((spaceship) =>{
   spacecraftRoot.position.set(0, 0, 0);
   scene.add(spacecraftRoot);
 });
+
+/**
+ * Spacecraft engine trail animation
+ */
+const textureLoader = new THREE.TextureLoader();
+const engineParticleCount = 100;
+const particleGeometry = new THREE.BufferGeometry();
+const particlePositions = new Float32Array(engineParticleCount * 3);
+const particleColors = new Float32Array(engineParticleCount * 3);
+
+const particleMaterial = new THREE.PointsMaterial({
+  size: 0.3,
+  map: textureLoader.load('https://threejs.org/examples/textures/sprites/disc.png'),
+  transparent: true,
+  opacity: 0.2,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  vertexColors: true
+});
+
+const particlePoints = new THREE.Points(particleGeometry, particleMaterial);
+scene.add(particlePoints);
+
+particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+particleGeometry.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+
+let currentParticleIdx = 0;
+
+function updateTrail() {
+  if (!spacecraftRoot) return;
+
+  let idxL = currentParticleIdx * 3;
+  particlePositions[idxL] = spacecraftRoot.position.x + 0.17;
+  particlePositions[idxL + 1] = spacecraftRoot.position.y + 0.2;
+  particlePositions[idxL + 2] = spacecraftRoot.position.z + 0.5;
+  particleColors[idxL] = 0; particleColors[idxL + 1] = 1; particleColors[idxL + 2] = 1;
+
+  currentParticleIdx = (currentParticleIdx + 1) % engineParticleCount;
+  
+  let idxR = currentParticleIdx * 3;
+  particlePositions[idxR] = spacecraftRoot.position.x - 0.15;
+  particlePositions[idxR + 1] = spacecraftRoot.position.y + 0.2;
+  particlePositions[idxR + 2] = spacecraftRoot.position.z + 0.5;
+  particleColors[idxR] = 0; particleColors[idxR + 1] = 1; particleColors[idxR + 2] = 1;
+
+  currentParticleIdx = (currentParticleIdx + 1) % engineParticleCount;
+
+  for (let i = 0; i < engineParticleCount; i++) {
+    const i3 = i * 3;
+
+    particlePositions[i3 + 2] += 0.05;
+
+    particleColors[i3] *= 0.85;
+    particleColors[i3 + 1] *= 0.85;
+    particleColors[i3 + 2] *= 0.85;
+    
+    particlePositions[i3] += (Math.random() - 0.5) * 0.01;
+    particlePositions[i3 + 1] += (Math.random() - 0.5) * 0.01;
+  }
+
+  particleGeometry.attributes.position.needsUpdate = true;
+  particleGeometry.attributes.color.needsUpdate = true;
+}
 
 /**
  * Projectiles
@@ -108,7 +159,9 @@ const fireLaser = () => {
   const geometry = new THREE.CapsuleGeometry(0.02,0.2,4,8);
   const material = new THREE.MeshBasicMaterial({ color: 0xff0000});
   const laser = new THREE.Mesh(geometry,material);
-  const light = new THREE.PointLight(0xff0000, 10, 20);
+  const light = new THREE.PointLight(0xff0000, 5, 5);
+  light.decay = 1.5;
+  light.castShadow = false;
   laser.add(light);
 
   laser.position.copy(spacecraftRoot.position);
@@ -130,6 +183,7 @@ const moveLaser = () => {
     }
 
     laserbox.setFromObject(laser);
+    laserbox.expandByScalar(0.2); 
 
     for(let j = obstacles.length -1; j>=0; j--) {
       const asteroid = obstacles[j];
@@ -137,8 +191,8 @@ const moveLaser = () => {
       if(laserbox.intersectsBox(currentObstacleBox)) {
         explode(asteroid.position.clone(), scene);
 
-        scene.remove(asteroid);
-        obstacles.splice(j, 1);
+        asteroid.position.z = randomRangeNum(-20, -40);
+        asteroid.position.x = randomRangeNum(8, -8);
 
         scene.remove(laser);
         projectiles.splice(i,1);
@@ -187,8 +241,6 @@ loader.load('models/asteroids_pack_rocky_version.glb', (gltf) => {
   }
 });
 
-
-
 /**
  * Grid helper
 const gridHelper = new THREE.GridHelper(30,30);
@@ -207,9 +259,8 @@ function checkCollisions() {
     if (shipBox.intersectsBox(currentObstacleBox)) {
       console.log("Kollision mit:", obstacle.name);
       explode(obstacle.position, scene);
-      scene.remove(obstacle);
-      obstacles.splice(i, 1);
-      points -= 1; 
+      obstacle.position.z = randomRangeNum(-20, -40);
+      obstacle.position.x = randomRangeNum(8, -8);
     }
   } 
 }
@@ -221,6 +272,8 @@ function animate() {
   moveLaser();
   handleMovement(0.1);
 
+  updateTrail();
+
   if (skybox) {
     skybox.rotation.y += 0.0002;
   }
@@ -228,6 +281,17 @@ function animate() {
   checkCollisions();
 
   renderer.render( scene, camera );
+}
+
+/**
+ * Checking highscore
+ */
+function checkHighscore() {
+  if(points===0) {
+    localStorage.setItem("highscore", points);
+  } else {
+    localStorage.setItem("highscore", points);
+  }
 }
 
 /**
