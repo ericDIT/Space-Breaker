@@ -266,6 +266,8 @@ function checkCollisions() {
       explode(obstacle.position, scene);
       obstacle.position.z = randomRangeNum(-20, -40);
       obstacle.position.x = randomRangeNum(8, -8);
+      points = 0;
+      if (pointsUI) pointsUI.innerText = points;
     }
   } 
 }
@@ -293,12 +295,11 @@ function animate() {
  */
 function checkHighscore() {
   if (!highscoreUI) return;
-  if(points===0) {
+  let currentHighstore = parseInt(localStorage.getItem("highscore")) || 0;
+  if(points > currentHighstore) {
     localStorage.setItem("highscore", points);
-    highscoreUI.innerText = localStorage.getItem("highscore");
-  } else {
-    localStorage.setItem("highscore", points);
-    highscoreUI.innerText = localStorage.getItem("highscore");
+    highscoreUI.innerText = points;
+    console.log("New highscore!: " + points);
   }
 }
 
