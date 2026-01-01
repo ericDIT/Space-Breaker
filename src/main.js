@@ -15,10 +15,14 @@ let skybox;
 const loader = new GLTFLoader();
 let lastShotTime = 0;
 const fireRate = 200;
-
 const pointsUI = document.querySelector("#pointsUI");
-let points = 1;
+let points = 0;
+let highscore = localStorage.getItem("highscore") || 0;
+if(highscoreUI) {
+  highscoreUI.innerText = highscore;
+}
 console.log(pointsUI);
+
 const randomRangeNum = (max,min) =>{
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
@@ -200,6 +204,7 @@ const moveLaser = () => {
         points += 1;
         console.log("Shot asteroid! +1 point")
         if (pointsUI) pointsUI.innerText = points;
+        checkHighscore()
         break;
       }
     }
@@ -287,10 +292,13 @@ function animate() {
  * Checking highscore
  */
 function checkHighscore() {
+  if (!highscoreUI) return;
   if(points===0) {
     localStorage.setItem("highscore", points);
+    highscoreUI.innerText = localStorage.getItem("highscore");
   } else {
     localStorage.setItem("highscore", points);
+    highscoreUI.innerText = localStorage.getItem("highscore");
   }
 }
 

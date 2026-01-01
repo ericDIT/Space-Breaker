@@ -2,11 +2,18 @@ body {
   margin: 0;
 }
 
-#ui {
+#ui_points {
   margin: 0;
   position: absolute;
-  top: 10px;
+  top: 2px;
   left: 10px;
+}
+
+#ui_highscore {
+  margin: 0;
+  position: absolute;
+  top: 2px;
+  right: 10px;
 }
 
 h1 {
