@@ -212,6 +212,38 @@ const moveLaser = () => {
 }
 
 /**
+ * Rewards
+ */
+function createStarGeometry() {
+  const pts = [];
+  const pikes = 5;
+  const outerRadius = 0.3;
+  const innerRadius = 0.1;
+
+  for (let i = 0; i<pikes*2; i++) {
+    const currRadius = i % 2 === 0 ? outerRadius : innerRadius;
+    const angle = (i / (pikes*2)) * Math.PI * 2;
+    pts.push(new THREE.Vector2(
+      Math.cos(angle) * currRadius,
+      Math.sin(angle) * currRadius
+    ));
+  }
+  const starShape = new THREE.Shape(pts);
+  const putIn3d = {
+    depth: 0.2,
+    bevelEnabled: true,
+    bevelThickness: 0.1,
+    bevelSize: 0.1
+  };
+  return new THREE.ExtrudeGeometry(starShape, putIn3d);
+}
+const starGeometry = createStarGeometry();
+const starMaterial = new THREE.MeshBasicMaterial({ color: 0xDFFF00 });
+const starMesh = new THREE.Mesh(starGeometry,starMaterial);
+starMesh.position.set(1, 1, -20);
+scene.add(starMesh);
+
+/**
  * Obstacles
  */
 const obstacles = [];
@@ -286,6 +318,9 @@ function animate() {
   }
 
   checkCollisions();
+
+  starMesh.rotation.x += 0.01;
+  starMesh.rotation.y += 0.01;
 
   renderer.render( scene, camera );
 }
