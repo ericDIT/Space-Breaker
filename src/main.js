@@ -6,6 +6,13 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 /**
+ * Main.js class for Spacebreaker.
+ * Sources and more information in README.md
+ * 
+ * Author @Eric M. (580802)
+ */
+
+/**
  * Variables
  */
 let spacecraftRoot;
