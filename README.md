@@ -28,3 +28,6 @@ https://www.svgrepo.com/svg/530151/space
 
 Tutorial used for fundamental game structure [last accessed 03.02.2026, 14:36]:
 https://www.youtube.com/watch?v=Sv8z__KiR5Y
+
+Code for the tube animation is by Bobby Roe [last accessed 03.02.2026, 18:35]:
+https://github.com/bobbyroe/wormhole-effect/blob/master/index.js
