@@ -1,6 +1,7 @@
 import { OrbitControls } from 'three/examples/jsm/Addons.js';
 import { loadSpaceship } from './components/low_poly_space_ship';
 import { explode } from './animations/obstacle_explosion';
+import { tubesAnimation } from './animations/tube_animation';
 import './style.css'
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -15,6 +16,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 /**
  * Variables
  */
+const tubeRadius = 10;
 let spacecraftRoot;
 const shipBox = new THREE.Box3();
 const currentObstacleBox = new THREE.Box3();
@@ -274,7 +276,7 @@ loader.load('models/asteroids_pack_rocky_version.glb', (gltf) => {
 
     asteroid.position.set(
       randomRangeNum(8, -8),
-      0,
+      randomRangeNum(8, -8),
       randomRangeNum(-10, -30)
     );
 
@@ -291,7 +293,14 @@ const gridHelper = new THREE.GridHelper(30,30);
 scene.add(gridHelper);
 */
 
-camera.position.z = 5;
+//camera.position.z = 5;
+function updateCamera() {
+  if (!spacecraftRoot) return; // Sicherheitscheck
+  
+  const offset = new THREE.Vector3(0, 2, 5);
+  camera.position.copy(spacecraftRoot.position).add(offset);
+  camera.lookAt(spacecraftRoot.position);
+}
 
 function checkCollisions() {
   if (!spacecraftRoot) return;
@@ -311,6 +320,12 @@ function checkCollisions() {
   } 
 }
 
+const tubes = tubesAnimation(tubeRadius);
+const tubeA = tubes[0];
+const tubeB = tubes[1];
+scene.add(tubeA.points, tubeB.points);
+
+
 function animate() {
 
   moveObstacles(obstacles);
@@ -318,9 +333,13 @@ function animate() {
   moveLaser();
   handleMovement(0.1);
 
+  tubes.forEach((tb) => tb.update())
+
   updateTrail();
+  updateCamera();
 
   if (skybox) {
+    skybox.rotation.x += 0.0002;
     skybox.rotation.y += 0.0002;
   }
 
@@ -371,6 +390,7 @@ window.addEventListener('keyup', (e) => {
 
 function handleMovement(speed) {
   if(!spacecraftRoot) return;
+  const maxRadius = tubeRadius;
   if (keys["ArrowUp"] || keys["w"] || keys["W"]) {
     spacecraftRoot.position.y += speed;
   }
@@ -388,5 +408,16 @@ function handleMovement(speed) {
   }
   if (keys["r"] || keys["R"]) {
     spacecraftRoot.position.set(0, 0, 0);
+  }
+
+  const distanceFromCenter = Math.sqrt(
+    spacecraftRoot.position.x ** 2 + 
+    spacecraftRoot.position.y ** 2
+  );
+
+  if (distanceFromCenter > maxRadius) {
+    const angle = Math.atan2(spacecraftRoot.position.y, spacecraftRoot.position.x);
+    spacecraftRoot.position.x = Math.cos(angle) * maxRadius;
+    spacecraftRoot.position.y = Math.sin(angle) * maxRadius;
   }
 }
