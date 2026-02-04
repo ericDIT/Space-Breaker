@@ -246,11 +246,24 @@ function createStarGeometry() {
   };
   return new THREE.ExtrudeGeometry(starShape, putIn3d);
 }
+const stars = [];
 const starGeometry = createStarGeometry();
 const starMaterial = new THREE.MeshBasicMaterial({ color: 0xDFFF00 });
 const starMesh = new THREE.Mesh(starGeometry,starMaterial);
 starMesh.position.set(1, 1, -20);
+stars.push(starMesh);
 scene.add(starMesh);
+
+const moveStar = (arr) => {
+  arr.forEach((o) => {
+    o.position.z += o.userData.speed;
+
+    if (o.position.z > camera.position.z) {
+      o.position.z = randomRangeNum(-20, -30);
+      o.position.x = randomRangeNum(8, -8);
+    }
+  });
+};
 
 /**
  * Obstacles
@@ -267,8 +280,7 @@ loader.load('models/asteroids_pack_rocky_version.glb', (gltf) => {
 
   for (let i = 0; i < 20; i++) {
 
-    const template =
-    asteroidTemplates[Math.floor(Math.random() * asteroidTemplates.length)];
+    const template = asteroidTemplates[Math.floor(Math.random() * asteroidTemplates.length)];
     const asteroid = template.clone(true);
 
     asteroid.material = template.material.clone();
@@ -344,6 +356,8 @@ function animate() {
   }
 
   checkCollisions();
+
+  moveStar(stars);
 
   starMesh.rotation.x += 0.01;
   starMesh.rotation.y += 0.01;
