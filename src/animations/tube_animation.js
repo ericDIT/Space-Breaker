@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ImprovedNoise } from "https://cdn.skypack.dev/three@0.133.1/examples/jsm/math/ImprovedNoise.js";
 
-export function tubesAnimation(tubeRadius) {
+export function tubesAnimation(tubeRadius, levelSpeed) {
     const ringRadius = 1.5;
     const tubeLength = 200;
     const numRings = 100;
@@ -73,13 +73,12 @@ export function tubesAnimation(tubeRadius) {
         }
 
         tubeGroup.position.z = 0;
-        const speed = 0.2;
 
         function update() {
             tubeGroup.rotation.z += 0.005;
             
             rings.forEach(ring => {
-                ring.position.z += speed;
+                ring.position.z += levelSpeed;
                 
                 // Reset Ring position wenn er zu weit ist
                 if (ring.position.z > endPosZ) {

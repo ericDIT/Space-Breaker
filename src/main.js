@@ -16,10 +16,12 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 /**
  * Variables
  */
+const levelSpeed = 0.1; //Here is the general speed of the level which in a way ist also the difficulty
 const tubeRadius = 10;
 let spacecraftRoot;
 const shipBox = new THREE.Box3();
 const currentObstacleBox = new THREE.Box3();
+const currentRewardBox = new THREE.Box3(); //TODO: box mit stern verbinden und laser collision einbinden
 let skybox;
 const loader = new GLTFLoader();
 let lastShotTime = 0;
@@ -35,16 +37,6 @@ console.log(pointsUI);
 const randomRangeNum = (max,min) =>{
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
-const moveObstacles = (arr) => {
-  arr.forEach((o) => {
-    o.position.z += o.userData.speed;
-
-    if (o.position.z > camera.position.z) {
-      o.position.z = randomRangeNum(-20, -30);
-      o.position.x = randomRangeNum(8, -8);
-    }
-  });
-};
 
 const scene = new THREE.Scene();
 
@@ -198,6 +190,8 @@ const moveLaser = () => {
     laserbox.setFromObject(laser);
     laserbox.expandByScalar(0.2); 
 
+    if(laserbox.intersectsBox())
+
     for(let j = obstacles.length -1; j>=0; j--) {
       const asteroid = obstacles[j];
       currentObstacleBox.setFromObject(asteroid);
@@ -246,21 +240,44 @@ function createStarGeometry() {
   };
   return new THREE.ExtrudeGeometry(starShape, putIn3d);
 }
+
 const stars = [];
 const starGeometry = createStarGeometry();
 const starMaterial = new THREE.MeshBasicMaterial({ color: 0xDFFF00 });
-const starMesh = new THREE.Mesh(starGeometry,starMaterial);
-starMesh.position.set(1, 1, -20);
-stars.push(starMesh);
-scene.add(starMesh);
+
+let lastStarSpawnTime = 0;
+const starSpawnInterval = 10000;
+function spawnStar() {
+  const currentTime = Date.now();
+  const timePassed = currentTime - lastStarSpawnTime;
+  if(timePassed<starSpawnInterval) return;
+  lastStarSpawnTime = currentTime;
+  const starMesh = new THREE.Mesh(starGeometry,starMaterial);
+
+  const angle = Math.random() * Math.PI * 2;
+  const radius = Math.random() * (tubeRadius - 1);
+
+  starMesh.position.set(
+    Math.cos(angle) * radius,
+    Math.sin(angle) * radius,
+    randomRangeNum(-70, -80)
+  );
+
+  starMesh.userData.speed = levelSpeed+0.08;
+  stars.push(starMesh);
+  scene.add(starMesh);
+}
 
 const moveStar = (arr) => {
   arr.forEach((o) => {
     o.position.z += o.userData.speed;
 
+    o.rotation.x += 0.01;
+    o.rotation.y += 0.01;
+
     if (o.position.z > camera.position.z) {
-      o.position.z = randomRangeNum(-20, -30);
-      o.position.x = randomRangeNum(8, -8);
+      scene.remove(o);
+      arr.splice(o);
     }
   });
 };
@@ -292,22 +309,25 @@ loader.load('models/asteroids_pack_rocky_version.glb', (gltf) => {
       randomRangeNum(-10, -30)
     );
 
-    asteroid.userData.speed = Math.random() * 0.04 + 0.04;
+    asteroid.userData.speed = levelSpeed;
     asteroid.name = `obstacle_${i}`;
     obstacles.push(asteroid);
     scene.add(asteroid);
   }
 });
+const moveObstacles = (arr) => {
+  arr.forEach((o) => {
+    o.position.z += o.userData.speed;
 
-/**
- * Grid helper
-const gridHelper = new THREE.GridHelper(30,30);
-scene.add(gridHelper);
-*/
+    if (o.position.z > camera.position.z) {
+      o.position.z = randomRangeNum(-20, -30);
+      o.position.x = randomRangeNum(8, -8);
+    }
+  });
+};
 
-//camera.position.z = 5;
 function updateCamera() {
-  if (!spacecraftRoot) return; // Sicherheitscheck
+  if (!spacecraftRoot) return;
   
   const offset = new THREE.Vector3(0, 2, 5);
   camera.position.copy(spacecraftRoot.position).add(offset);
@@ -332,7 +352,10 @@ function checkCollisions() {
   } 
 }
 
-const tubes = tubesAnimation(tubeRadius);
+/**
+ * Tube animation
+ */
+const tubes = tubesAnimation(tubeRadius, levelSpeed);
 const tubeA = tubes[0];
 const tubeB = tubes[1];
 scene.add(tubeA.points, tubeB.points);
@@ -357,10 +380,8 @@ function animate() {
 
   checkCollisions();
 
+  spawnStar();
   moveStar(stars);
-
-  starMesh.rotation.x += 0.01;
-  starMesh.rotation.y += 0.01;
 
   renderer.render( scene, camera );
 }
