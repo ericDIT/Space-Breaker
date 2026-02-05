@@ -1,6 +1,10 @@
 # Space-Breaker
 [Work in progress] Space-Breaker is a small arcade game within your web-browser.
-You control a spaceship, dodge obstacles and gain points by picking up rewards.
+You control a spaceship within a warp-tunnel, dodge obstacles and gain points by picking up rewards.
+Shoot an asteroid: +1 point
+Crash with an asteroid: game over -> resets to 0 points
+
+Your highscore will be persistent
 
 ## Controlls
 UP | w or arrow up key\
