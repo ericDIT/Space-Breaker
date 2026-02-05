@@ -21,7 +21,9 @@ const tubeRadius = 10;
 let spacecraftRoot;
 const shipBox = new THREE.Box3();
 const currentObstacleBox = new THREE.Box3();
+const obstacles = [];
 const currentRewardBox = new THREE.Box3(); //TODO: box mit stern verbinden und laser collision einbinden
+const stars = [];
 let skybox;
 const loader = new GLTFLoader();
 let lastShotTime = 0;
@@ -176,9 +178,60 @@ const fireLaser = () => {
   projectiles.push(laser);
 }
 
+const collisionTargets = [
+  {
+    name: 'star',
+    array: stars,
+    boundingBox: currentRewardBox,
+    distanceThreshold: 2,
+    onHit: (target, targetIndex, laser, laserIndex) => {
+      explode(target.position.clone(), scene);
+      scene.remove(target);
+      stars.splice(targetIndex, 1);
+      scene.remove(laser);
+      projectiles.splice(laserIndex, 1);
+      
+      points += 10;
+      console.log("Shot a Star! +10 points");
+      if (pointsUI) pointsUI.innerText = points;
+      checkHighscore();
+      
+      return true;
+    }
+  },
+  {
+    name: 'obstacle',
+    array: obstacles,
+    boundingBox: currentObstacleBox,
+    distanceThreshold: 2,
+    onHit: (target, targetIndex, laser, laserIndex) => {
+      explode(target.position.clone(), scene);
+      
+      target.position.z = randomRangeNum(-20, -40);
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * (tubeRadius - 1);
+      target.position.x = Math.cos(angle) * radius;
+      target.position.y = Math.sin(angle) * radius;
+      
+      scene.remove(laser);
+      projectiles.splice(laserIndex, 1);
+      
+      points += 1;
+      console.log("Shot asteroid! +1 point");
+      if (pointsUI) pointsUI.innerText = points;
+      checkHighscore();
+      
+      return true;
+    }
+  }
+];
+
 const moveLaser = () => {
-  for(let i = projectiles.length -1; i>=0; i--){
+  for(let i = projectiles.length - 1; i >= 0; i--) {
     const laser = projectiles[i];
+    
+    if(!laser) continue;
+    
     laser.position.z -= projectileSpeed;
 
     if(laser.position.z < -50) {
@@ -188,27 +241,26 @@ const moveLaser = () => {
     }
 
     laserbox.setFromObject(laser);
-    laserbox.expandByScalar(0.2); 
+    laserbox.expandByScalar(0.2);
 
-    if(laserbox.intersectsBox())
+    let laserDestroyed = false;
 
-    for(let j = obstacles.length -1; j>=0; j--) {
-      const asteroid = obstacles[j];
-      currentObstacleBox.setFromObject(asteroid);
-      if(laserbox.intersectsBox(currentObstacleBox)) {
-        explode(asteroid.position.clone(), scene);
+    for(const targetType of collisionTargets) {
+      if(laserDestroyed) break;
+      
+      for(let j = targetType.array.length - 1; j >= 0; j--) {
+        const target = targetType.array[j];
+        
+        if(!target?.position) continue;
 
-        asteroid.position.z = randomRangeNum(-20, -40);
-        asteroid.position.x = randomRangeNum(8, -8);
+        const dist = laser.position.distanceTo(target.position);
+        if(dist > targetType.distanceThreshold) continue;
 
-        scene.remove(laser);
-        projectiles.splice(i,1);
-
-        points += 1;
-        console.log("Shot asteroid! +1 point")
-        if (pointsUI) pointsUI.innerText = points;
-        checkHighscore()
-        break;
+        targetType.boundingBox.setFromObject(target);
+        if(laserbox.intersectsBox(targetType.boundingBox)) {
+          laserDestroyed = targetType.onHit(target, j, laser, i);
+          break;
+        }
       }
     }
   }
@@ -241,7 +293,6 @@ function createStarGeometry() {
   return new THREE.ExtrudeGeometry(starShape, putIn3d);
 }
 
-const stars = [];
 const starGeometry = createStarGeometry();
 const starMaterial = new THREE.MeshBasicMaterial({ color: 0xDFFF00 });
 
@@ -266,6 +317,7 @@ function spawnStar() {
   starMesh.userData.speed = levelSpeed+0.08;
   stars.push(starMesh);
   scene.add(starMesh);
+  console.log(stars.length);
 }
 
 const moveStar = (arr) => {
@@ -285,7 +337,6 @@ const moveStar = (arr) => {
 /**
  * Obstacles
  */
-const obstacles = [];
 const asteroidTemplates = [];
 loader.load('models/asteroids_pack_rocky_version.glb', (gltf) => {
 
