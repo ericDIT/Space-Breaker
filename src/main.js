@@ -1,40 +1,61 @@
-import { OrbitControls } from 'three/examples/jsm/Addons.js';
 import { loadSpaceship } from './components/low_poly_space_ship';
 import { explode } from './animations/obstacle_explosion';
 import { tubesAnimation } from './animations/tube_animation';
 import './style.css'
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { GameStateManager } from './gameState';
+import { audioManager } from './audioManager';
 
 /**
  * Main.js class for Spacebreaker.
- * Sources and more information in README.md
+ * Sources and more information in README.md they are marked here with [1],[2],...
  * 
  * Author @Eric M. (580802)
  */
 
 /**
+ * Game State
+ */
+const gameState = new GameStateManager();
+
+gameState.onGameStart = () => {
+};
+
+gameState.onGameOver = () => {
+  resetKeys();
+};
+
+gameState.onGameRestart = () => {
+  resetGame();
+};
+
+gameState.onReturnToMenu = () => {
+  resetGame();
+};
+
+/**
  * Variables
  */
-const levelSpeed = 0.1; //Here is the general speed of the level which in a way ist also the difficulty
+let initialLevelSpeed = 0.1;
+let levelSpeed = initialLevelSpeed; //Here is the general speed of the level which in a way ist also the difficulty
+let lastSpeedIncrease = 0;
+const speedIncreaseInterval = 5000;
+const speedIncreaseAmount = 0.02;
+const maxSpeed = 1;
 const tubeRadius = 10;
 let spacecraftRoot;
 const shipBox = new THREE.Box3();
 const currentObstacleBox = new THREE.Box3();
+const currentBarrierBox = new THREE.Box3();
 const obstacles = [];
+const barriers = [];
 const currentRewardBox = new THREE.Box3(); //TODO: box mit stern verbinden und laser collision einbinden
 const stars = [];
 let skybox;
 const loader = new GLTFLoader();
 let lastShotTime = 0;
 const fireRate = 200;
-const pointsUI = document.querySelector("#pointsUI");
-let points = 0;
-let highscore = localStorage.getItem("highscore") || 0;
-if(highscoreUI) {
-  highscoreUI.innerText = highscore;
-}
-console.log(pointsUI);
 
 const randomRangeNum = (max,min) =>{
   return Math.floor(Math.random() * (max - min + 1) + min);
@@ -42,7 +63,7 @@ const randomRangeNum = (max,min) =>{
 
 const scene = new THREE.Scene();
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
 scene.add(ambientLight);
 
 const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
@@ -54,29 +75,50 @@ camera.position.x = 4.5;
 camera.position.y = 1.5;
 camera.far = 5000;
 camera.updateProjectionMatrix();
-
 const renderer = new THREE.WebGLRenderer();
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setSize( window.innerWidth, window.innerHeight );
 renderer.setAnimationLoop( animate );
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.5;
 document.body.appendChild( renderer.domElement );
 
 /**
- * Orbitcontrols
+ * Sound [8]
  */
-const controls = new OrbitControls(camera, renderer.domElement);
+const listener = new THREE.AudioListener();
+const audioLoader = new THREE.AudioLoader();
+const sounds = {
+  shoot: new THREE.Audio(listener),
+  explosion: new THREE.Audio(listener),
+};
+audioLoader.load('/sounds/laser.mp3', buffer => {
+  sounds.shoot.setBuffer(buffer);
+  sounds.shoot.setVolume(0.4);
+});
+
+audioLoader.load('/sounds/explosion.mp3', buffer => {
+  sounds.explosion.setBuffer(buffer);
+  sounds.explosion.setVolume(0.2);
+});
+function playSound(sound) {
+  if (!audioManager.enabled) return;
+  if (sound.isPlaying) sound.stop();
+  sound.play();
+}
+camera.add(listener);
 
 /**
- * Skybox
+ * Skybox [1]
  */
 loader.load('models/space_nebula_hdri_panorama_360_skydome.glb', (gltf) => {
     skybox = gltf.scene;
-    skybox.scale.set(100, 100, 100);
+    skybox.scale.set(250, 100, 100);
     scene.add(skybox);
 });
 
 /**
- * Spacecraft (player)
+ * Spacecraft (player) [2]
  */
 loadSpaceship({ position: [0,0,0], scale: 0.3}).then((spaceship) =>{
   spacecraftRoot = new THREE.Group();
@@ -158,18 +200,15 @@ const projectileSpeed = 0.5;
 const laserbox = new THREE.Box3();
 
 const fireLaser = () => {
+  playSound(sounds.shoot);
   const currentTime = Date.now();
   if(!spacecraftRoot || currentTime - lastShotTime < fireRate) return;
 
   lastShotTime = currentTime;
 
-  const geometry = new THREE.CapsuleGeometry(0.02,0.2,4,8);
+  const geometry = new THREE.CapsuleGeometry(0.04,0.9,4,8);
   const material = new THREE.MeshBasicMaterial({ color: 0xff0000});
   const laser = new THREE.Mesh(geometry,material);
-  const light = new THREE.PointLight(0xff0000, 5, 5);
-  light.decay = 1.5;
-  light.castShadow = false;
-  laser.add(light);
 
   laser.position.copy(spacecraftRoot.position);
   laser.rotation.x = Math.PI / 2;
@@ -186,16 +225,13 @@ const collisionTargets = [
     distanceThreshold: 2,
     onHit: (target, targetIndex, laser, laserIndex) => {
       explode(target.position.clone(), scene);
+      playSound(sounds.explosion);
       scene.remove(target);
       stars.splice(targetIndex, 1);
       scene.remove(laser);
       projectiles.splice(laserIndex, 1);
-      
-      points += 10;
+      gameState.addPoints(10);
       console.log("Shot a Star! +10 points");
-      if (pointsUI) pointsUI.innerText = points;
-      checkHighscore();
-      
       return true;
     }
   },
@@ -206,6 +242,7 @@ const collisionTargets = [
     distanceThreshold: 2,
     onHit: (target, targetIndex, laser, laserIndex) => {
       explode(target.position.clone(), scene);
+      playSound(sounds.explosion);
       
       target.position.z = randomRangeNum(-20, -40);
       const angle = Math.random() * Math.PI * 2;
@@ -216,11 +253,8 @@ const collisionTargets = [
       scene.remove(laser);
       projectiles.splice(laserIndex, 1);
       
-      points += 1;
-      console.log("Shot asteroid! +1 point");
-      if (pointsUI) pointsUI.innerText = points;
-      checkHighscore();
-      
+      gameState.addPoints(1);
+      console.log("Shot asteroid! +1 point");      
       return true;
     }
   }
@@ -294,7 +328,13 @@ function createStarGeometry() {
 }
 
 const starGeometry = createStarGeometry();
-const starMaterial = new THREE.MeshBasicMaterial({ color: 0xDFFF00 });
+const starMaterial = new THREE.MeshStandardMaterial({
+  color: 0xDFFF00,
+  emissive: 0xDFFF00,
+  emissiveIntensity: 25,
+  roughness: 0.2,
+  metalness: 0.0
+});
 
 let lastStarSpawnTime = 0;
 const starSpawnInterval = 10000;
@@ -304,6 +344,14 @@ function spawnStar() {
   if(timePassed<starSpawnInterval) return;
   lastStarSpawnTime = currentTime;
   const starMesh = new THREE.Mesh(starGeometry,starMaterial);
+  const light = new THREE.PointLight(
+    0xDFFF00,
+    2.5,   // intensity
+    6,     // distance
+    2      // decay
+  );
+  light.position.set(0, 0, 0);
+  starMesh.add(light);
 
   const angle = Math.random() * Math.PI * 2;
   const radius = Math.random() * (tubeRadius - 1);
@@ -317,7 +365,6 @@ function spawnStar() {
   starMesh.userData.speed = levelSpeed+0.08;
   stars.push(starMesh);
   scene.add(starMesh);
-  console.log(stars.length);
 }
 
 const moveStar = (arr) => {
@@ -335,7 +382,7 @@ const moveStar = (arr) => {
 };
 
 /**
- * Obstacles
+ * Obstacles [3]
  */
 const asteroidTemplates = [];
 loader.load('models/asteroids_pack_rocky_version.glb', (gltf) => {
@@ -346,7 +393,7 @@ loader.load('models/asteroids_pack_rocky_version.glb', (gltf) => {
     }
   });
 
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 50; i++) {
 
     const template = asteroidTemplates[Math.floor(Math.random() * asteroidTemplates.length)];
     const asteroid = template.clone(true);
@@ -377,6 +424,50 @@ const moveObstacles = (arr) => {
   });
 };
 
+/**
+ * Laser barrier [7]
+ */
+const barrierTemplates = [];
+loader.load('models/futuristic_sci-fi_laser_barrier.glb', (gltf) => {
+
+  gltf.scene.traverse((child) => {
+    if (child.isMesh) {
+      barrierTemplates.push(child);
+    }
+  });
+
+  for (let i = 0; i < 10; i++) {
+
+    const template = barrierTemplates[Math.floor(Math.random() * barrierTemplates.length)];
+    const barrier = template.clone(true);
+
+    barrier.material = template.material.clone();
+    barrier.scale.set((Math.random() * (0.9 - 0.4) + 0.4), 0.8, 0.8);
+
+    barrier.position.set(
+      randomRangeNum(8, -8),
+      randomRangeNum(8, -8),
+      randomRangeNum(-10, -30)
+    );
+    barrier.rotation.x = Math.PI / 2;
+
+    barrier.userData.speed = levelSpeed;
+    barrier.name = `barrier_${i}`;
+    barriers.push(barrier);
+    scene.add(barrier);
+  }
+});
+const moveBarrier = (arr) => {
+  arr.forEach((o) => {
+    o.position.z += o.userData.speed;
+
+    if (o.position.z > camera.position.z) {
+      o.position.z = randomRangeNum(-20, -30);
+      o.position.x = randomRangeNum(8, -8);
+    }
+  });
+};
+
 function updateCamera() {
   if (!spacecraftRoot) return;
   
@@ -385,69 +476,105 @@ function updateCamera() {
   camera.lookAt(spacecraftRoot.position);
 }
 
-function checkCollisions() {
-  if (!spacecraftRoot) return;
+function checkCollisions(objectArray, boxOfObject) {
+  if (!spacecraftRoot || !gameState.isPlaying()) return;
   shipBox.setFromObject(spacecraftRoot);
 
-  for (let i = obstacles.length - 1; i >= 0; i--) {
-    const obstacle = obstacles[i];
-    currentObstacleBox.setFromObject(obstacle);
-    if (shipBox.intersectsBox(currentObstacleBox)) {
-      console.log("Kollision mit:", obstacle.name);
-      explode(obstacle.position, scene);
-      obstacle.position.z = randomRangeNum(-20, -40);
-      obstacle.position.x = randomRangeNum(8, -8);
-      points = 0;
-      if (pointsUI) pointsUI.innerText = points;
+  for (let i = objectArray.length - 1; i >= 0; i--) {
+    const object = objectArray[i];
+    boxOfObject.setFromObject(object);
+    if (shipBox.intersectsBox(boxOfObject)) {
+      console.log("Collision with:", object.name);
+      explode(object.position, scene);
+      playSound(sounds.explosion);
+      gameState.triggerGameOver();
     }
   } 
 }
 
 /**
- * Tube animation
+ * Reset Game
+ */
+function resetGame() {
+
+  if (spacecraftRoot) {
+    spacecraftRoot.position.set(0, 0, 0);
+  }
+  
+  projectiles.forEach(p => scene.remove(p));
+  projectiles.length = 0;
+  
+  stars.forEach(s => scene.remove(s));
+  stars.length = 0;
+  lastStarSpawnTime = 0;
+  
+  obstacles.forEach(o => {
+    o.position.z = randomRangeNum(-10, -30);
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.random() * (tubeRadius - 1);
+    o.position.x = Math.cos(angle) * radius;
+    o.position.y = Math.sin(angle) * radius;
+  });
+  
+  barriers.forEach(b => {
+    b.position.z = randomRangeNum(-10, -30);
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.random() * (tubeRadius - 1);
+    b.position.x = Math.cos(angle) * radius;
+    b.position.y = Math.sin(angle) * radius;
+  });
+  levelSpeed = initialLevelSpeed;
+}
+
+
+/**
+ * Tube animation [6]
  */
 const tubes = tubesAnimation(tubeRadius, levelSpeed);
 const tubeA = tubes[0];
 const tubeB = tubes[1];
 scene.add(tubeA.points, tubeB.points);
 
+/**
+ * Increacing level-speed logic
+ */
+function increaseLevelSpeed() {
+  if (!gameState.isPlaying()) return;
+  const currentTime = Date.now();
+  const timePassed = currentTime - lastSpeedIncrease;
+  
+  if (timePassed < speedIncreaseInterval) return;
+
+  lastSpeedIncrease = currentTime;
+  if (levelSpeed < maxSpeed) {
+    levelSpeed += speedIncreaseAmount;
+    console.log(`Level Speed increased to: ${levelSpeed.toFixed(2)}`);
+  
+  }
+}
 
 function animate() {
-
-  moveObstacles(obstacles);
-  controls.update();
-  moveLaser();
-  handleMovement(0.1);
-
-  tubes.forEach((tb) => tb.update())
-
-  updateTrail();
-  updateCamera();
-
+  if (gameState.isPlaying()) {
+    moveObstacles(obstacles);
+    moveBarrier(barriers);
+    moveLaser();
+    handleMovement(0.1);
+    tubes.forEach((tb) => tb.update());
+    updateTrail();
+    updateCamera();
+    checkCollisions(obstacles, currentObstacleBox);
+    checkCollisions(barriers, currentBarrierBox);
+    spawnStar();
+    moveStar(stars);
+    increaseLevelSpeed();
+  }
+  
   if (skybox) {
     skybox.rotation.x += 0.0002;
     skybox.rotation.y += 0.0002;
   }
 
-  checkCollisions();
-
-  spawnStar();
-  moveStar(stars);
-
-  renderer.render( scene, camera );
-}
-
-/**
- * Checking highscore
- */
-function checkHighscore() {
-  if (!highscoreUI) return;
-  let currentHighstore = parseInt(localStorage.getItem("highscore")) || 0;
-  if(points > currentHighstore) {
-    localStorage.setItem("highscore", points);
-    highscoreUI.innerText = points;
-    console.log("New highscore!: " + points);
-  }
+  renderer.render(scene, camera);
 }
 
 /**
@@ -465,14 +592,30 @@ window.addEventListener("resize", ()=>{
 const keys = {};
 
 window.addEventListener('keydown', (e) => {
-  keys[e.key] = true;
-  keys[e.code] = true;
+  if (e.key === 'Escape') {
+    gameState.togglePause();
+    resetKeys();
+    return;
+  }
+  
+  if (gameState.isPlaying()) { 
+    keys[e.key] = true;
+    keys[e.code] = true;
+  }
 });
 
 window.addEventListener('keyup', (e) => {
-  keys[e.key] = false;
-  keys[e.code] = false;
+  if(gameState.isPlaying()) {
+    keys[e.key] = false;
+    keys[e.code] = false;
+  }
 });
+
+function resetKeys() {
+  for (const key in keys) {
+    keys[key] = false;
+  }
+}
 
 function handleMovement(speed) {
   if(!spacecraftRoot) return;

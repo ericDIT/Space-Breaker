@@ -9,6 +9,18 @@ export function loadSpaceship({ position=[0,0,0], scale=1 } = {}) {
             model.position.set(...position);
             model.rotation.y = Math.PI;
             model.scale.setScalar(scale);
+            model.traverse(child => {
+              if (child.isMesh && child.material) {
+                child.material.roughness = 0.01;
+                child.material.metalness = 0.05;
+                child.material.color.multiplyScalar(0.85);
+                child.material.flatShading = false;
+                child.material.needsUpdate = true;
+            
+                child.castShadow = true;
+                child.receiveShadow = true;
+              }
+            });
             resolve(model);
         });
     });
