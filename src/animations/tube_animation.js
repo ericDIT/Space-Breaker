@@ -42,13 +42,13 @@ export function tubesAnimation(tubeRadius, levelSpeed) {
         }
 
         ringGeo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-        const mat = new THREE.MeshBasicMaterial({ 
-            vertexColors: true,
-            wireframe: true,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.08,
-            blending: THREE.AdditiveBlending
+        const mat = new THREE.PointsMaterial({ 
+          size: 0.03, 
+          vertexColors: true,
+          transparent: true,
+          opacity: 0.9,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
         });
         
         const ring = new THREE.Mesh(ringGeo, mat);
